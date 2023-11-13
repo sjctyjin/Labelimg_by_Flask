@@ -1,0 +1,27 @@
+
+            <annotation>
+                <folder>images</folder>
+                <filename>9.jpg</filename>
+                <path>static\uploads\20231108_150220-TEST\images\9.jpg</path>
+                <source>
+                    <database>Unknown</database>
+                </source>
+                <size>
+                    <width>604</width>
+                    <height>806</height>
+                    <depth>3</depth>
+                </size>
+                <segmented>0</segmented>
+            <object>
+                        <name>bird</name>
+                        <pose>Unspecified</pose>
+                        <truncated>0</truncated>
+                        <difficult>0</difficult>
+                        <bndbox>
+                            <xmin>223</xmin>
+                            <ymin>0</ymin>
+                            <xmax>452</xmax>
+                            <ymax>164</ymax>
+                        </bndbox>
+                    </object>
+                    </annotation>

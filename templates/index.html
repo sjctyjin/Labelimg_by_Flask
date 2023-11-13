@@ -1,0 +1,986 @@
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <link rel="shortcut icon" href="static/favicon.ico" type="image/x-icon">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        <meta name="description" content="" />
+        <meta name="author" content="" />
+        <title>影像標註</title>
+        <link href="static/css/styles.css" rel="stylesheet" />
+        <link href="static/css/table_style.css" rel="stylesheet" />
+        <script src="static/js/all.js" crossorigin="anonymous"></script>
+        <link href="static/js/jquery-ui.css" rel="stylesheet" />
+        <script src="static/js/jquery.js"></script>
+        <script src="static/js/jquery-ui.js"></script>
+
+        <style>
+
+            .updf{
+              position: absolute;
+              width: 100%;
+              left: 0%;
+              border: 1px silver solid;
+              border-radius: 25px;
+              padding: 0px;
+  
+            }
+             #upd_tb{
+              margin: 0;
+              margin-left: auto;
+              margin-right: auto;
+              width:100%;
+              left: 0%;
+              position: relative;
+             
+             }
+
+             .ui-autocomplete{
+                    z-index: 99999;
+
+             }
+             #upd_tb td{
+              border: 0px silver solid;
+              padding: 5px;
+              font-size: 2.5vmin;
+              
+             }
+             .btn{
+              font-size: 2.5vmin;
+             }
+             #foldername{
+                width: 50%;
+  
+             }
+
+            div#imgarea{
+                background-repeat: no-repeat;float: left;
+            }
+            canvas#pCanvas{
+                cursor: pointer;
+            }
+            canvas#cimage{
+                border: 0px dotted;
+            }
+  
+  
+          </style>
+          <script>
+            //全域變數
+            var canvas, context, image;
+            var arr = new Array(); 
+            var clone_panel;
+            var availableTags = [];
+            var reducer_a = 0;
+            var checklabelfile = 0;//確認是否存在已標註檔案
+            var modlechoice = [];//蒐集同名模型
+            var selectedModel = "";
+            var checkmodelchoice = 0;//確認是否以選擇模型- 0 = 未選擇 1 = 已選擇
+
+            function delay(n){
+                return new Promise(function(resolve){
+                    setTimeout(resolve,n*1000);
+                });
+            }
+
+            //載入網頁時,同時載入圖片
+            async function myAsyncFunction(seleceidx){
+                var filename = document.getElementById("filelist").options[seleceidx].text;                
+                $("#imgarea").css("background-image","url("+filename+")");
+                $("#label_img").attr("src",filename );
+                await delay(0.1);//delay 0.1 sec
+                
+                console.log(Math.round(parseFloat($('#label_img').css("width"))));
+                document.getElementById("pCanvas").width = Math.round(parseFloat($('#label_img').css("width")));
+                document.getElementById("pCanvas").height = Math.round(parseFloat($('#label_img').css("height")));
+                check_cav = 1;
+                console.log("Loding........ 完成");
+                $(".store_label").css("height", Math.round(parseFloat($('#label_img').css("height")))+"px");
+                $('.label_board').remove();
+                ajaxRead(filename);//讀取已存在的標註框
+                await delay(0.5);//delay 0.1 sec
+                //讀取到標註框後，將其繪製
+                draw_all_rect();
+                await delay(1);//delay 0.1 sec
+            }
+
+            async function loge(){
+                if(document.getElementById('class_by_keyword') != document.activeElement){
+                    switch (event.key) {
+                        case "a":
+                            if(document.getElementById("filelist").options.length > 0){
+                                var idx = document.getElementById("filelist").selectedIndex;
+                                var ifpass = 0;
+                                if(parseInt(idx) > 0 ){
+                                    
+                                    //Step1.先儲存當前label結果，後刪除lable
+                                    if(document.querySelectorAll(".label_board").length != 0){
+                                        ajaxStore(ifpass);//儲存標註結果
+                                        $('.label_board').remove();  
+                                    }
+                                    //Step2 . 載入上一張
+                                    await delay(0.1);//delay 0.1 sec
+                                    document.getElementById("filelist").selectedIndex = parseInt(idx-1);
+                                    myAsyncFunction(parseInt(idx-1));
+                                }
+                            }
+                            break;
+                        case "d":
+                            if(document.getElementById("filelist").options.length > 0){
+                                var labelarea = document.getElementsByClassName("store_label")[0];
+                                var labeldiv = 0;
+                                var idx = document.getElementById("filelist").selectedIndex;
+                                var ifpass = 0;
+                                if(parseInt(idx) < document.getElementById("filelist").options.length ){                                              
+                                    //Step1.先儲存當前label結果，後刪除lable
+                                    if(document.querySelectorAll(".label_board").length != 0){                                 
+                                        ajaxStore(ifpass);//儲存標註結果
+                                        $('.label_board').remove();                    
+                                    }
+                                    //Step2 . 載入下一張
+                                    await delay(0.1);//delay 0.1 sec
+                                    document.getElementById("filelist").selectedIndex = parseInt(idx+1);
+                                    myAsyncFunction(parseInt(idx+1));   
+                                }                            
+                            }
+                            break;
+                        case "s":
+                            if(document.getElementById("filelist").options.length > 0){
+                                
+                                var labelarea = document.getElementsByClassName("store_label")[0];
+                                var labeldiv = 0;
+                                var idx = document.getElementById("filelist").selectedIndex;
+                                var ifpass = 1;
+                                if(parseInt(idx) < document.getElementById("filelist").options.length ){                                              
+                                    //先儲存當前label結果，後刪除lable
+                                    ajaxStore(ifpass);//儲存標註結果
+                                    console.log("儲存");
+                                }                            
+                            }
+                        break;
+                        case "ArrowLeft":
+                            console.log("ArrowLeft");
+                            break;
+                        case "ArrowRight":
+                            console.log("ArrowRight");
+                            break;
+                        default:
+                            console.log(event.key, event.keyCode);
+                            key_keep = event.key;
+                            console.log("顯示"+key_keep);
+                    }
+                }
+            }
+
+            
+
+            function init() {
+
+                $('#modelOK').attr('disabled', 'disabled');
+
+                var parm = "{{urlguide}}" ;
+                console.log("參數: ",parm);
+                if(parm != ""){
+                    let urlParams = new URLSearchParams(window.location.search);
+                    if(urlParams.get('filepath') != parm){
+
+                        window.location.href=window.location.pathname+"?filepath="+parm;
+                        console.log(window.location.href+"?filepath="+parm);
+                    }
+                    
+                }
+                //檢測是否reloading
+                window.onbeforeunload = function() {
+                    return true; // return 必不可少
+                }
+                clone_panel = document.querySelector('.label_panel').cloneNode()
+                //1新增畫布內容2綁定快捷鍵
+                canvas = document.getElementById("pCanvas");
+                context =canvas.getContext("2d");
+                context.lineWidth=2;  			//線寬
+                context.strokeStyle='blue';	//線的顏色
+                document.addEventListener("keydown", loge);
+                document.getElementById('label_class').querySelector('input').addEventListener("keydown", check_pass);
+                document.getElementById('label_class').querySelector('select').addEventListener("keydown", check_pass);
+                $("#filelist").css("height","50vh");
+
+                var check_cav = 0
+              
+            }
+            function draw_all_rect(){
+                arr = new Array();//儲存ajax讀取框選字卡內容的陣列
+                var labelarea = document.getElementsByClassName("store_label")[0];
+                var divc = 0;
+                
+                for(var divn = 0;divn < labelarea.childNodes.length;divn++){
+                    if(labelarea.childNodes[divn].nodeName == "DIV"){
+                        
+                        if(divc != 0){
+                            arr.push(divn);
+                        }
+                        divc++;
+                    }          
+                } 
+
+                //依陣列值畫圖框
+                for(var m = 0;m < arr.length;m++){
+                    var thiss = labelarea.childNodes[arr[m]];
+                            var bxmin = thiss.children[0].children[1].getElementsByTagName('b')[0].innerHTML;
+                            var bymin = thiss.children[0].children[1].getElementsByTagName('b')[1].innerHTML;
+                            var bmax = thiss.children[0].children[1].getElementsByTagName('b')[2].innerHTML;
+                            var bmin = thiss.children[0].children[1].getElementsByTagName('b')[3].innerHTML;
+                            var bh = thiss.children[0].children[1].getElementsByTagName('b')[4].innerHTML;
+                            var bw = thiss.children[0].children[1].getElementsByTagName('b')[5].innerHTML;
+
+                            context.fillStyle = "rgba(0,0,255,0.2)";
+                            context.beginPath();
+                            context.rect(bxmin,bymin,bw,bh);// 畫出實心矩形
+                            context.strokeRect(bxmin,bymin,bw,bh);//畫出空心矩形
+                            context.fill();
+                            //console.log(divc);
+                }
+                reducer_a = 1;
+                return arr[m];
+
+
+            }
+            
+            function check_pass(val){
+                if(val.key == "Enter" || val.nodeName == "BUTTON"){
+                    d = document.getElementsByClassName('label_card')[0].cloneNode(true);
+                    //顯示字卡
+                    d.style.display = "block";
+                    classname = document.getElementById('label_class').querySelector('input').value;
+
+                    //標註名稱-次序
+                    d.children[0].children[0].children[0].children[0].innerHTML = classname;
+                    if(stopx < startx){
+                        stop_X = startx;
+                        start_X = stopx;
+                    }else{
+                        stop_X = stopx;
+                        start_X = startx;
+                    }
+
+                    if(stopy < starty){
+                        stop_Y = starty;
+                        start_Y = stopy;
+                    }else{
+                        stop_Y = stopy;
+                        start_Y = starty;
+                    }
+                    d.children[0].children[1].getElementsByTagName('b')[0].innerHTML= start_X;
+                    d.children[0].children[1].getElementsByTagName('b')[1].innerHTML= start_Y;
+                    d.children[0].children[1].getElementsByTagName('b')[2].innerHTML= stop_X;
+                    d.children[0].children[1].getElementsByTagName('b')[3].innerHTML= stop_Y;
+                    d.children[0].children[1].getElementsByTagName('b')[4].innerHTML= Math.abs(Math.round(parseFloat(h)));
+                    d.children[0].children[1].getElementsByTagName('b')[5].innerHTML= Math.abs(Math.round(parseFloat(w)));
+                    d.setAttribute("class","col-md-8 label_card label_board" );
+                    d.onmouseenter = function(){
+                        var bxmin = this.children[0].children[1].getElementsByTagName('b')[0].innerHTML;
+                        var bymin = this.children[0].children[1].getElementsByTagName('b')[1].innerHTML;
+                        var bmax = this.children[0].children[1].getElementsByTagName('b')[2].innerHTML;
+                        var bmin = this.children[0].children[1].getElementsByTagName('b')[3].innerHTML;
+                        var bh = this.children[0].children[1].getElementsByTagName('b')[4].innerHTML;
+                        var bw = this.children[0].children[1].getElementsByTagName('b')[5].innerHTML;
+                        context.clearRect(0,0,canvas.width,canvas.height);
+                        context.beginPath();
+                        //清空繪圖區域
+                        context.strokeStyle = "rgba(0,255,0,0.3)";
+                        context.fillStyle = "rgba(0,0,255,0.3)";
+                        
+                        context.rect(bxmin,bymin,bw,bh);
+                        context.strokeRect(bxmin,bymin,bw,bh);
+                        context.fill();
+                    };
+                    d.onmouseleave = function(){
+                        draw_all_rect();
+                    };
+                
+                    document.getElementsByClassName("store_label")[0].appendChild(d);
+                    //標註panel
+                    document.getElementById("label_class").style.display = "none";   
+                    //清除畫痕
+                    context.clearRect(0,0,canvas.width,canvas.height);   
+                    draw_all_rect();
+
+                    //檢查select是否存在該值-----------------------------------------------------
+
+                    var select = document.getElementById("class_list");
+                    var inputValue = document.getElementById("class_by_keyword").value;
+                    var options = select.options;
+                    var found = false;
+                    console.log(found);
+                    for (var i = 0; i < options.length; i++) {
+                        if (options[i].value === inputValue) {
+                        found = true;
+                        break;
+                        }
+                    }
+
+                    if (!found) {
+                        var option = document.createElement("option");
+                        option.value = inputValue;
+                        option.text = inputValue;
+                        select.add(option);
+                        //console.log('加入');
+                        availableTags.push(inputValue);
+                        var filepath = document.getElementById("filelist").options[document.getElementById("filelist").selectedIndex].text
+                        console.log(filepath);
+                        $.ajax({
+                            url:"classname",
+                            type:"POST",
+                            contentType: "application/json;charset=UTF-8",
+                            //Django用法 Post接收contentType 使用x-www-form-urlencoded
+                            //一般使用 application/json;
+                            data:                   
+                                JSON.stringify(
+                                { 
+                                    "tags":inputValue,   
+                                    "filepath":filepath,                                    
+                                }) 
+                            ,dataType: 'json',
+
+                                success: function(data){
+                                console.log(data)
+                            }
+                        })
+
+                    }
+
+                    document.getElementsByClassName("form-select")[0].querySelectorAll('option').forEach(option => {
+                        if($("#class_by_keyword").val() == option.textContent){
+                            document.getElementById("class_list").selectedIndex = option.index;
+                        }
+                    });
+                }
+            }
+
+            function check_no(val){
+                val.parentElement.parentElement.parentElement.parentElement.style.display = "none";   
+                //清除畫痕
+                context.clearRect(0,0,canvas.width,canvas.height);   
+            }
+            function getlist(val){
+                console.log();
+                var divmoudle = val.parentElement.parentElement.parentElement.parentElement;
+                divmoudle.querySelector('input').value = val.options[val.selectedIndex].text;               
+            }
+            function getmodel(val){
+                var divmoudle = val.parentElement.parentElement.parentElement.parentElement;
+                divmoudle.querySelector('input').value = val.options[val.selectedIndex].text;         
+                $('#modelOK').removeAttr("disabled");
+
+            }
+            //file list
+            async function getlist2(val){
+                if(document.querySelectorAll(".label_board").length != 0){
+                    $('.label_board').remove()
+                }
+                myAsyncFunction(val.selectedIndex);
+                $(".store_label").css("height", Math.round(parseFloat($('#label_img').css("height")))+"px");
+            }
+
+            function uploadImg(){
+              var d = document.getElementById('updfiles').files.length;
+              document.getElementById('filecount').innerHTML = "已選擇"+d+"個檔案";
+              document.getElementById('dir_name').style.display="block";
+            }
+
+            function ajaxStore(ifpass){
+
+                var filepath = document.getElementById("filelist").options[document.getElementById("filelist").selectedIndex].text
+                var imgwidth = $('#label_img').width();
+                var imgheight = $('#label_img').height();
+                var labelarea = document.getElementsByClassName("store_label")[0];
+                var abrr = new Array();
+                optionTexts = [];
+                document.getElementsByClassName("form-select")[0].querySelectorAll('option').forEach(option => {
+                    optionTexts.push(option.textContent);
+                });
+                if(arr.length  != 0){
+                    for(var m = 0;m < arr.length;m++){
+                    // console.log("將結果儲存 : ",arr[m])
+                        var thiss = labelarea.childNodes[arr[m]];
+                        if(thiss != null){
+                            var labelname = thiss.children[0].children[0].getElementsByTagName('p')[0].innerHTML;
+                            var bxmin = thiss.children[0].children[1].getElementsByTagName('b')[0].innerHTML;
+                            var bymin = thiss.children[0].children[1].getElementsByTagName('b')[1].innerHTML;
+                            var bmax = thiss.children[0].children[1].getElementsByTagName('b')[2].innerHTML;
+                            var bmin = thiss.children[0].children[1].getElementsByTagName('b')[3].innerHTML;
+                            var bh = thiss.children[0].children[1].getElementsByTagName('b')[4].innerHTML;
+                            var bw = thiss.children[0].children[1].getElementsByTagName('b')[5].innerHTML;
+                            abrr.push(labelname,bxmin,bymin,bmax,bmin,bh,bw);//標註結果資料
+                        }                     
+                    }
+                }
+                
+                $.ajax({
+                    url:"list",
+                    type:"POST",
+                    contentType: "application/json;charset=UTF-8",
+                    //Django用法 Post接收contentType 使用x-www-form-urlencoded
+                    //一般使用 application/json;
+                    data:                   
+                       JSON.stringify({
+                        "filepath":filepath,
+                        "imgwidth":imgwidth,
+                        "imgheight":imgheight,
+                        "ifpass":ifpass,
+                        "label":abrr,
+                        "labellist":optionTexts,                          
+
+                    })  
+                    ,dataType: 'json',
+
+                        success: function(data){
+                        console.log(data)
+                        //alert('新增成功');
+                    }
+                })
+
+            }
+            function ajaxRead(filepath){//讀取已存在的標註框
+                $('.label_board').remove();
+                $.ajax({
+                    url:"read",
+                    type:"POST",
+                    contentType: "application/json;charset=UTF-8",
+                    //Django用法 Post接收contentType 使用x-www-form-urlencoded
+                    //一般使用 application/json;
+                    data: 
+                    JSON.stringify({   
+                        "filepath":filepath,
+                    })
+                    ,dataType: 'json',
+
+                    success: function(data){
+                       console.log('ajax result:'+data)
+                        $('.label_board').remove();
+                        data['data'].forEach(option => {
+                            console.log(option[0]);
+
+                            d = document.getElementsByClassName('label_card')[0].cloneNode(true);
+                            //顯示字卡
+                            d.style.display = "block";
+                            //標註名稱-次序
+                            d.children[0].children[0].children[0].children[0].innerHTML = option[0];
+                            d.children[0].children[1].getElementsByTagName('b')[0].innerHTML= option[1];
+                            d.children[0].children[1].getElementsByTagName('b')[1].innerHTML= option[2];
+                            d.children[0].children[1].getElementsByTagName('b')[2].innerHTML= option[3];
+                            d.children[0].children[1].getElementsByTagName('b')[3].innerHTML= option[4];
+                            d.children[0].children[1].getElementsByTagName('b')[4].innerHTML= option[5];
+                            d.children[0].children[1].getElementsByTagName('b')[5].innerHTML= option[6];
+                            d.setAttribute("class","col-md-8 label_card label_board" );
+                            d.onmouseenter = function(){
+                                var bxmin = this.children[0].children[1].getElementsByTagName('b')[0].innerHTML;
+                                var bymin = this.children[0].children[1].getElementsByTagName('b')[1].innerHTML;
+                                var bmax = this.children[0].children[1].getElementsByTagName('b')[2].innerHTML;
+                                var bmin = this.children[0].children[1].getElementsByTagName('b')[3].innerHTML;
+                                var bh = this.children[0].children[1].getElementsByTagName('b')[4].innerHTML;
+                                var bw = this.children[0].children[1].getElementsByTagName('b')[5].innerHTML;
+                                context.clearRect(0,0,canvas.width,canvas.height);
+                                context.beginPath();
+                                //清空繪圖區域
+                                context.strokeStyle = "rgba(0,255,0,0.3)";
+                                context.fillStyle = "rgba(0,0,255,0.3)";
+                                context.rect(bxmin,bymin,bw,bh);
+                                context.strokeRect(bxmin,bymin,bw,bh);
+                                context.fill();
+                                // console.log(bxmin);
+                        };
+                        d.onmouseleave = function(){
+                            draw_all_rect();
+                        };
+                    
+                        document.getElementsByClassName("store_label")[0].appendChild(d);
+                        //標註panel
+                        document.getElementById("label_class").style.display = "none";   
+                        //清除畫痕
+                        });
+                        console.log(data['data']);
+                    }
+                })
+
+            }
+
+
+            function check(){
+                if(document.getElementById('data_set_name').value == ""){
+                    alert("請填入資料夾名稱");
+                }
+                else{
+                    var userForm = document.getElementById("userForm");
+                    $('#lodingdog').fadeIn(3000)
+                    userForm.submit();
+                    return true;
+                }
+            }
+
+            function speedlabel(){
+                $('#model_class').fadeIn(1000);
+                
+                var filepath = document.getElementById("filelist").options[0].text;
+                var file_name = location.href.split('?')[1].substring(9,200);
+                console.log(filepath);
+                $.ajax({
+                    url:"speedlabeling",
+                    type:"POST",
+                    contentType: "application/json;charset=UTF-8",
+                    //Django用法 Post接收contentType 使用x-www-form-urlencoded
+                    //一般使用 application/json;
+                    data:                   
+                    JSON.stringify({   
+                        "filename":file_name,
+                        "mode":"select",                                        
+                    })
+                    ,dataType: 'json',
+                        success: function(data){
+                            checkmodelchoice = 1;//確認點開
+                            // model_list
+                            var selectElement = document.getElementById('model_list');
+                            modlechoice = data.status;//將多模型紀錄
+                            console.log(data.status)
+                            while (selectElement.options.length > 0) {
+                                selectElement.remove(0);
+                            }
+                            if(data.status != ""){
+                                for(var a = 0;a < data.status.length;a++){
+                                // 建立新的 option 元素
+                                var newOption = document.createElement("option");
+                                // 設定新 option 元素的值和顯示文字
+                                newOption.value = data.status[a];
+                                newOption.text = data.status[a];
+                                // 將新 option 元素加入到 select 元素中
+                                selectElement.add(newOption);
+                            }
+                            document.getElementById('model_class').querySelector('input').value = selectElement.options[0].text
+                        }                      
+                        checklabelfile = data.labeled;
+                    }
+                })
+
+            }
+
+        function labelstart(val){
+                if(checklabelfile == 1){
+                    var yes = confirm('已存在標註文件，若執行自動標註\n\n先前標註過的結果將被覆蓋\n\n確認是否執行自動標註?');
+                    if(!yes){
+                        console.log('NO');
+                        $('#model_class').fadeOut(1000);
+                        return false;
+                    }
+                }
+                $('#model_class').fadeOut(1000);
+                $('#lodingdog').fadeIn(1000);
+               
+                var model_name = val.parentElement.parentElement.parentElement.parentElement.parentElement.querySelector('input').value;
+                var filepath = document.getElementById("filelist").options[0].text;
+                var file_name = location.href.split('?')[1].substring(9,200);
+                console.log(filepath);
+                $.ajax({
+                    url:"speedlabeling",
+                    type:"POST",
+                    contentType: "application/json;charset=UTF-8",
+                    //Django用法 Post接收contentType 使用x-www-form-urlencoded
+                    //一般使用 application/json;
+                    data:                   
+                    JSON.stringify({   
+                        "filepath":filepath,
+                        "filename":file_name,
+                        "mode":"label",
+                        'modelname': model_name,
+                        "modelpath":selectedModel,
+                                        
+                    })
+                    ,dataType: 'json',
+
+                        success: function(data){
+                        if (data.status == "no data"){
+                            console.log("沒有模型")
+                            $('#lodingdog').fadeOut(500);
+                            $('.square').fadeIn(2000);
+                            $('.square').fadeOut(2000);
+                            $('#model_class').fadeOut(300);
+                        }
+                        else{
+                            alert('標註完成，請重新整理頁面');
+                            window.location.reload();
+                        }
+                    }
+                })
+
+            }
+          </script>
+
+    </head>
+    <body class="sb-nav-fixed" onload="init()">
+
+
+        <div id="label_class" style="display: none;position:absolute;z-index:1999;background-color: white;border:1px solid slategray;">
+            <div>
+                <div class="toast-header d-flex justify-content-between">
+                    <div class="d-flex justify-content-start">
+                        <strong class="mr-auto text-left">標註類別</strong>
+                    </div>
+                  
+                  <div class="d-flex justify-content-end">
+                    <button type="button" class="ml-2 mb-1 d-flex justify-content-end" onclick="check_no(this)" >
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="toast-body">
+                    <div class="col-lg-12">
+                        <div class="input-group">
+                           
+                            <input type="text" class="form-control form-control-sm" id="class_by_keyword">
+                        </div>
+                    </div>
+                    <div class="toast-header d-flex justify-content-between">
+                        <div class="d-flex justify-content-start"> 
+                        </div> 
+                      <div class="col-lg-12 d-flex justify-content-end">
+                        <button type="button" class="btn btn-success btn-sm fs-6" onclick="check_pass(this)">OK</button>&nbsp;
+                        <button type="button" class="btn btn-danger btn-sm fs-6" onclick="check_no(this.parentElement)">Cancel</button>
+                      </div>
+                    </div>
+                    <div class="col-lg-12">
+                        <select class="form-select" multiple aria-label="multiple select example" id="class_list" onchange="getlist(this)">
+                            {% for m in tags %}
+                                <option selected>{{m}}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+              </div>
+        </div>
+
+
+        <div id="model_class" style="display: none;position:fixed;width: 30%;left:35%;top:20vh;z-index:1999;background-color: white;border:1px solid slategray;">
+            <div>
+                <div class="toast-header d-flex justify-content-between">
+                    <div class="d-flex justify-content-start">
+                        <strong class="mr-auto text-left">標註模型選擇</strong>
+                    </div>
+                  
+                  <div class="d-flex justify-content-end">
+                    <button type="button" class="ml-2 mb-1 d-flex justify-content-end" onclick="check_no(this)" >
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                  </div>
+                  
+                </div>
+                <div class="toast-body">
+                    <div class="col-lg-12">
+                        <div class="input-group">
+                           
+                            <input type="text" class="form-control form-control-sm" id="model_by_keyword">
+
+                        </div>
+                    </div>
+                    <div class="toast-header d-flex justify-content-between">
+                        <div class="d-flex justify-content-start">
+                            
+                        </div>
+                      
+                      <div class="col-lg-12 d-flex justify-content-end">
+                        <button id="modelOK" type="button" class="btn btn-success btn-sm fs-6" onclick="labelstart(this)">OK</button>&nbsp;
+                        <button type="button" class="btn btn-danger btn-sm fs-6" onclick="check_no(this.parentElement)">Cancel</button>
+                      </div>
+                      
+                    </div>
+                    <div class="col-lg-12">
+                        <select class="form-select" multiple aria-label="multiple select example" id="model_list" onchange="getmodel(this)">
+                
+                            {% for m in tags %}
+                                <option selected>{{m}}</option>
+                            {% endfor %}
+                          
+                        </select>
+                    </div>
+                </div>
+              </div>
+        </div>
+
+        {{ menu | safe }}
+
+        <div id="layoutSidenav">
+            <div id="layoutSidenav_nav">
+                <nav class="sb-sidenav accordion sb-sidenav-dark" id="sidenavAccordion">
+                    <div class="sb-sidenav-menu">
+                        <div class="nav">
+                            <a class="nav-link" href="index2">
+                                <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                                Dashboard
+                            </a>
+
+                            <table id="upd_tb">
+                                <tr><td style="border-top-left-radius: 0px;border-top-right-radius: 0px; background-image: linear-gradient(to top, #FFC78E		, #FFA042	);">選擇檔案</td></tr>
+                              <form action="" enctype='multipart/form-data' method='POST' id="userForm">
+                                <tr><td>
+                                  
+                                    <label class="btn btn-info btn-sm" onchange="uploadImg()"  style="font-size: 2vmin;">
+                                        <input type="file" name="file[]" id="updfiles" style="display:none;" accept=".jpg,.jpeg,.png,.jfif,.HEIC,.mp4,.wmv,.flv,.mov,.avi" multiple>
+                                        <i class="fa fa-image"></i> 選擇圖片
+                                    </label><span id="imgs"></span>
+                                    <label class="btn btn-info btn-sm" style="font-size: 2vmin;">
+                                        <input type="button" style="display: none;font-size: 2vmin;" onclick="check()" value="上傳" name="upload">
+                                        <i class="fa fa-upload"></i> 上傳
+                                    </label>
+                                    <div id="dir_name" style="background-color:linear-gradient(to top,#FFC78E,#FFA042);display:none">
+                                        資料夾名稱 : <input type="text" id="data_set_name" name="dataset" value="">
+                                    </div>
+                                    <p id="filecount"></p>
+                                </td>
+                         
+                                <tr><td><input type="hidden" id="foldername" name="foldername" value=""></td></tr>
+                                <tr><td>
+                                    File list&nbsp;&nbsp;&nbsp;&nbsp;總數 : {{dirslen}}
+                                    <select id="filelist" class="form-select" multiple aria-label="" style="overflow: scroll;" onchange="getlist2(this)">
+                                        
+                                        
+                                        {% for i in dirs %}
+                                            <option value="3">{{i}}</option>
+                                        {% endfor %}
+                                        
+                                    </select>
+                                </td></tr>
+
+
+                              </form>
+                            </table>
+
+                        </div>
+                    </div>
+                    <div class="sb-sidenav-footer">
+                        <div class="small">Logged in as:</div>
+                        {{user}}
+                    </div>
+                </nav>
+            </div>
+
+            
+            <div id="layoutSidenav_content">
+                <main>
+                    
+
+
+
+                    <div class="container-fluid px-4">
+                        
+                        <h1 class="mt-4">{{obj_name}} &nbsp;&nbsp;<label class="btn btn-success btn-sm" style="font-size: 4vmin;">
+                            <input id="fastlabel" type="button" style="display: none;font-size: 2vmin;" onclick="speedlabel()" value="快速標註">
+                            <i class="fa fa-image"></i> 自動標註
+                          </label>
+                        </h1>     
+
+                        <div class="row">
+                            <div class="col-xl-12 ">
+                                <div class="card mb-4">
+                                    <div class="card-header" data-bs-toggle="collapse" href="#collapseExample" role="button" aria-expanded="false" aria-controls="collapseExample">
+                                        <i class="fas fa-chart-bar me-1"></i>
+                                        資料夾
+                                    </div>
+
+                                     <div class="card-body collapse" id="collapseExample">
+                                <table id="datatablesSimple">
+                                    <thead>
+                                        <tr>
+                                            <th>資料夾名稱</th>
+                                            <th>建立時間</th>
+                                        </tr>
+                                    </thead>
+                                    <tfoot>
+                                        <tr>
+                                            <th>資料夾名稱</th>
+                                            <th>建立時間</th>
+                                        </tr>
+                                    </tfoot>
+                                    <tbody>
+                                         {% for a in file_dir %}
+                                               <tr>
+                                                    <td><a href="?filepath={{a.0}}">{{a.0}}</a></td>
+                                                    <td>{{a.1}}</td>
+                                                </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card mb-4 label_panel">
+                            <div class="card-header">
+                                <i class="fas fa-table me-1"></i>
+                                標註區域
+                            </div>
+                            <div class="card-body" >
+                                
+                                <img id="label_img" style="display: none;" >
+                                <div id="imgarea" style="border:3px solid" >
+                                    <canvas id="pCanvas" 
+                                        onmousedown="clipstart2(event)"
+                                        onmouseup="clipstop2(event)"
+                                        onmousemove="onmove2(event)"
+                                    ></canvas>
+                                </div>
+                                <div class="store_label row" style="overflow-y: scroll;">
+                                    <il id="demo1" style="display: none;"></il>
+                                    <il id="demo2" style="display: none;"></il>
+                                    <il id="demo4" style="display: none;"></il>
+                                    <il id="demo3" style="display: none;"></il>
+                                    <div class="col-md-8 label_card" style="display: none;">
+                                        <div class="card bg-success text-white mb-2">
+                                            <div class="card-body d-grid gap-2 d-flex justify-content-between">
+                                                    <div class="justify-content-start">
+                                                        <p class="text-start text-left" >Cucumber</p>
+                                                    </div>
+                                                    
+                                                    <div class="justify-content-end">
+                                                        <button type="button" class="ml-2 mb-1 d-flex justify-content-end"  onclick="label_delete(this)" >
+                                                            <span aria-hidden="true">&times;</span>
+                                                        </button>
+                                                    </div>
+                                            </div>
+                                            <div class="card-footer d-flex align-items-center justify-content-between overflow-auto">
+                                                xmin <b class="xmin"></b>
+                                                ymin <b class="ymin"></b>
+                                                xmax <b class="xmax"></b>
+                                                ymax <b class="ymax"></b>
+                                                h <b class="h"></b>
+                                                w <b class="w"></b>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+                <footer class="py-4 bg-light mt-auto">
+                    <div class="container-fluid px-4">
+                        <div class="d-flex align-items-center justify-content-between small">
+                            <div class="text-muted">Copyright &copy; YOLOLabel 2023</div>
+                        </div>
+                    </div>
+
+                    
+                </footer>
+                <img id="lodingdog" src="static/loading.gif" style="position: fixed;width: 20%;left: 40%;top: 30vh;display: none;" >
+
+                <div class="square" style="padding:20px;position:fixed;
+                top:20%;width:40%;left:30%;
+                border-radius:15px;
+                background-color:#f8c565;
+                color:#f37d0f;font-size:5vmin;z-index: 9999;
+                text-align:center;display: none;">
+                  該模型無 PyTorch 訓練檔<br/>
+                 </div>
+            </div>
+        </div>
+        <script src="static/js/scripts.js"></script>
+        <script src="static/assets/demo/chart-area-demo.js"></script>
+        <script src="static/assets/demo/chart-bar-demo.js"></script>
+        <script src="static/js/datatables-simple-demo.js"></script>
+        <script src="static/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+        <script src="static/js/simple-datatables@latest.js" ></script>
+        <script src="static/js/datatables-simple-demo.js"></script>
+
+    </body>
+
+    <script>
+        //移除標註
+        function label_delete(val){
+            var obj = val.parentElement.parentElement.parentElement.parentElement.parentElement;
+            obj.removeChild(val.parentElement.parentElement.parentElement.parentElement);
+            //清除畫痕
+            context.clearRect(0,0,canvas.width,canvas.height);
+        }
+           
+   		var startx=0,starty=0,w=0,h=0;
+   		var stopx=0;
+   		var stopy=0;
+   		var cb=0;
+
+        //滑鼠點擊觸發
+   		function clipstart2(event){
+            startx=event.pageX - $("#pCanvas").offset().left;   //touches代表螢幕上所有觸摸點的列表
+   			starty=event.pageY - $("#pCanvas").offset().top;
+   			cb=1;
+            startx = Math.round(parseFloat(startx));
+            starty = Math.round(parseFloat(starty));
+            document.getElementById("demo1").innerHTML=startx;
+			document.getElementById("demo2").innerHTML=starty;
+            //清除畫痕
+            context.clearRect(0,0,canvas.width,canvas.height);
+            document.getElementById('label_class').style.display = "none";
+   		}          
+		//滑鼠結束觸發
+   		function clipstop2(event){
+            stopx=event.pageX - $("#pCanvas").offset().left;  //touchend必須要用changedTouches方法獲取clientX
+   			stopy=event.pageY - $("#pCanvas").offset().top;
+   			cb=0;	
+            stopx = Math.round(parseFloat(stopx));
+            stopy = Math.round(parseFloat(stopy));
+            document.getElementById("demo4").innerHTML=stopx;
+            document.getElementById("demo3").innerHTML=stopy;		
+			console.log('起始點:',startx,starty);
+            console.log('結束點:',stopx,stopy);
+            //避免單次點擊生成
+            if(startx != stopx){
+                lbclass = document.getElementById('label_class');
+                lbclass.style.left = event.clientX+"px";
+                lbclass.style.top = event.clientY+"px";
+                lbclass.style.display = "block";
+                lbclass.querySelector('input').value = lbclass.querySelector('select').options[lbclass.querySelector('select').selectedIndex].text;
+                lbclass.querySelector('input').focus();
+            }
+   		}
+		//滑鼠移動觸發
+   		function onmove2(event){
+            canvas = document.getElementById("pCanvas");
+            context =canvas.getContext("2d");
+            context.lineWidth=2;  			//線寬
+            context.strokeStyle='green';	//線的顏色
+            if (cb==1){
+   				context.clearRect(0,0,canvas.width,canvas.height);
+                   
+   				h = event.pageY - starty- $("#pCanvas").offset().top;
+   				w = event.pageX - startx- $("#pCanvas").offset().left;
+                h = Math.round(parseFloat(h));
+                w = Math.round(parseFloat(w));
+                if(startx != event.pageX){
+                    context.strokeRect(startx,starty,w,h);
+                }
+   			}
+   		}
+           $(function() {
+
+            document.getElementsByClassName("form-select")[0].querySelectorAll('option').forEach(option => {
+                availableTags.push(option.textContent);
+            });
+            
+            $( "#class_by_keyword" ).autocomplete({
+                source: availableTags,
+            }).bind("input.autocomplete", function () {
+                $(this).autocomplete("search", this.value);
+                });
+            $("#class_by_keyword").autocomplete({
+                select: function (event, ui) {
+                    $("#class_by_keyword").trigger('change');
+                    document.getElementsByClassName("form-select")[0].querySelectorAll('option').forEach(option => {
+                        if($("#class_by_keyword").val() == option.textContent){
+                            document.getElementById("class_list").selectedIndex = option.index;
+                        }
+                    });
+                }
+            });
+            
+        });
+  </script>
+</html>
